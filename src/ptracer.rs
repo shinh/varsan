@@ -87,7 +87,7 @@ impl Ptracer {
     }
 
     pub fn get_regs(&self, target: &target_desc::Target) -> Registers {
-        let mut buf = vec![0 as u8; target.user_size];
+        let buf = vec![0 as u8; target.user_size];
         check_ptrace!(libc::PTRACE_GETREGS, self.pid, 0, buf.as_ptr());
 
         let mut gps = vec![0; target.gp_names.len()];

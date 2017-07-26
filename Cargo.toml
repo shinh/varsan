@@ -6,3 +6,4 @@ authors = ["Shinichiro Hamaji <shinichiro.hamaji@gmail.com>"]
 [dependencies]
 libc = "*"
 regex-syntax = "*"
+rustyline = "1.0.0"
