@@ -1,7 +1,9 @@
 extern crate libc;
 
-use libc_utils::*;
 use std;
+
+use libc_utils::*;
+use target_desc;
 
 pub struct ProcessState {
     status: i32
@@ -13,6 +15,19 @@ impl ProcessState {
             libc::WIFSTOPPED(self.status)
         }
     }
+}
+
+pub struct Registers {
+    gps: Vec<i64>,
+    ip: i64,
+    sp: i64,
+    bp: i64,
+}
+
+impl Registers {
+    pub fn ip(&self) -> i64 { self.ip }
+    pub fn sp(&self) -> i64 { self.sp }
+    pub fn bp(&self) -> i64 { self.bp }
 }
 
 fn check_ptrace<'a>(retval: i64, msg: &'a str) -> i64 {
@@ -71,6 +86,35 @@ impl Ptracer {
         check_ptrace!(libc::PTRACE_SINGLESTEP, self.pid, 0, 0);
     }
 
+    pub fn get_regs(&self, target: &target_desc::Target) -> Registers {
+        let mut buf = vec![0 as u8; target.user_size];
+        check_ptrace!(libc::PTRACE_GETREGS, self.pid, 0, buf.as_ptr());
+
+        let mut gps = vec![0; target.gp_names.len()];
+        let gp_ptr = unsafe {
+            (buf.as_ptr() as *const u8).offset(target.gp_off)
+        };
+        for i in 0..gps.len() {
+            let mut r: i64 = 0xdeadbeef;
+            if target.gp_size == 8 {
+                r = unsafe {
+                    *(gp_ptr.offset((target.gp_size * i) as isize)
+                      as *const i64)
+                }
+            } else {
+                assert!(false);
+            }
+            gps[i] = r;
+        }
+
+        return Registers {
+            ip: gps[target.ip_index],
+            sp: gps[target.sp_index],
+            bp: gps[target.bp_index],
+            gps: gps,
+        }
+    }
+
     pub fn wait(&mut self) -> ProcessState {
         let mut status: i32 = -1;
         unsafe {
@@ -79,8 +123,5 @@ impl Ptracer {
         return ProcessState {
             status: status
         };
-    }
-
-    fn drop(&mut self) {
     }
 }
