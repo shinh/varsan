@@ -4,6 +4,8 @@ mod libc_utils;
 mod ptracer;
 mod target_desc;
 
+use std::collections::HashMap;
+
 extern crate rustyline;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
@@ -11,10 +13,10 @@ use rustyline::Editor;
 fn main() {
     let args: Vec<_> = std::env::args().collect();
 
-    let target = target_desc::get_target();
-
     let mut ptracer = ptracer::Ptracer::new(
         args[1..args.len()].iter().collect());
+
+    let mut breakpoints = HashMap::new();
 
     let mut rl = Editor::<()>::new();
     loop {
@@ -34,9 +36,21 @@ fn main() {
                         break;
                     }
                 } else if toks[0] == "i" {
-                    let regs = ptracer.get_regs(&target);
+                    let regs = ptracer.get_regs();
                     println!("ip={:x} sp={:x} bp={:x}",
                              regs.ip(), regs.sp(), regs.bp());
+                } else if toks[0] == "b" {
+                    // TODO: Parse expression.
+                    let addr = toks[1].parse::<i64>().unwrap();
+                    let token = ptracer.poke_breakpoint(addr);
+                    breakpoints.insert(addr, token);
+                } else if toks[0] == "cont" {
+                    ptracer.cont();
+                    let status = ptracer.wait();
+                    if !status.is_stopped() {
+                        println!("program finished");
+                        break;
+                    }
                 } else {
                     println!("Unknown command: {}", toks[0]);
                 }

@@ -6,6 +6,9 @@ pub struct Target {
     pub ip_index: usize,
     pub sp_index: usize,
     pub bp_index: usize,
+    pub le: bool,
+    pub breakpoint_op: u64,
+    pub breakpoint_size: i32,
 }
 
 pub fn get_target() -> Target {
@@ -67,5 +70,8 @@ pub fn get_target() -> Target {
         ip_index: 16,
         sp_index: 19,
         bp_index: 4,
+        le: true,
+        breakpoint_op: 0xcc,
+        breakpoint_size: 1,
     }
 }

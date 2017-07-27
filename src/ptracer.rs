@@ -42,11 +42,12 @@ macro_rules! check_ptrace {
     ($r:expr, $e1:expr, $e2:expr, $e3:expr) =>
         (check_ptrace(unsafe {
             libc::ptrace($r, $e1, $e2, $e3)
-        }, stringify!($e)));
+        }, stringify!($r)));
 }
 
 pub struct Ptracer {
-    pid: libc::pid_t
+    pid: libc::pid_t,
+    target: target_desc::Target,
 }
 
 impl Ptracer {
@@ -69,7 +70,8 @@ impl Ptracer {
         }
 
         let mut ptracer = Ptracer {
-            pid: pid
+            pid: pid,
+            target: target_desc::get_target(),
         };
 
         let status = ptracer.wait();
@@ -86,19 +88,19 @@ impl Ptracer {
         check_ptrace!(libc::PTRACE_SINGLESTEP, self.pid, 0, 0);
     }
 
-    pub fn get_regs(&self, target: &target_desc::Target) -> Registers {
-        let buf = vec![0 as u8; target.user_size];
+    pub fn get_regs(&self) -> Registers {
+        let buf = vec![0 as u8; self.target.user_size];
         check_ptrace!(libc::PTRACE_GETREGS, self.pid, 0, buf.as_ptr());
 
-        let mut gps = vec![0; target.gp_names.len()];
+        let mut gps = vec![0; self.target.gp_names.len()];
         let gp_ptr = unsafe {
-            (buf.as_ptr() as *const u8).offset(target.gp_off)
+            (buf.as_ptr() as *const u8).offset(self.target.gp_off)
         };
         for i in 0..gps.len() {
             let mut r: i64 = 0xdeadbeef;
-            if target.gp_size == 8 {
+            if self.target.gp_size == 8 {
                 r = unsafe {
-                    *(gp_ptr.offset((target.gp_size * i) as isize)
+                    *(gp_ptr.offset((self.target.gp_size * i) as isize)
                       as *const i64)
                 }
             } else {
@@ -108,11 +110,36 @@ impl Ptracer {
         }
 
         return Registers {
-            ip: gps[target.ip_index],
-            sp: gps[target.sp_index],
-            bp: gps[target.bp_index],
+            ip: gps[self.target.ip_index],
+            sp: gps[self.target.sp_index],
+            bp: gps[self.target.bp_index],
             gps: gps,
         }
+    }
+
+    pub fn peek_word(&self, addr: i64) -> i64 {
+        return check_ptrace!(libc::PTRACE_PEEKDATA, self.pid, addr, 0);
+    }
+
+    pub fn poke_word(&self, addr: i64, data: i64) {
+        check_ptrace!(libc::PTRACE_POKEDATA, self.pid, addr, data);
+    }
+
+    pub fn poke_byte(&self, addr: i64, data: u8) -> u8 {
+        assert!(self.target.le);
+        let orig = self.peek_word(addr);
+        let word = (orig & !0xff) | (data as i64);
+        self.poke_word(addr, word);
+        return (orig & 0xff) as u8;
+    }
+
+    pub fn poke_breakpoint(&self, addr: i64) -> u8 {
+        assert_eq!(self.target.breakpoint_size, 1);
+        return self.poke_byte(addr, self.target.breakpoint_op as u8);
+    }
+
+    pub fn cont(&self) {
+        check_ptrace!(libc::PTRACE_CONT, self.pid, 0, 0);
     }
 
     pub fn wait(&mut self) -> ProcessState {
