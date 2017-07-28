@@ -1,5 +1,6 @@
+mod command;
+mod eval;
 #[macro_use]
-
 mod libc_utils;
 mod ptracer;
 mod target_desc;
@@ -23,36 +24,49 @@ fn main() {
         let readline = rl.readline("(vdb) ");
         match readline {
             Ok(line) => {
-                // TODO: Improve the command parser.
-                let toks: Vec<&str> = line.split(' ').collect();
-                if toks.len() == 0 {
-                    continue;
-                }
-                if toks[0] == "si" || toks[0] == "stepi" {
-                    ptracer.single_step();
-                    let status = ptracer.wait();
-                    if !status.is_stopped() {
-                        println!("program finished");
-                        break;
+                match command::parse(&line) {
+                    Ok(cmd) => {
+                        match cmd {
+                            command::Command::Break(addr) => {
+                                let addr = eval::eval(addr);
+                                let token = ptracer.poke_breakpoint(addr);
+                                breakpoints.insert(addr, token);
+                            }
+
+                            command::Command::Cont => {
+                                ptracer.cont();
+                                let status = ptracer.wait();
+                                if !status.is_stopped() {
+                                    println!("program finished");
+                                    break;
+                                }
+                            }
+
+                            command::Command::Info => {
+                                let regs = ptracer.get_regs();
+                                println!("ip={:x} sp={:x} bp={:x}",
+                                         regs.ip(), regs.sp(), regs.bp());
+                            }
+
+                            command::Command::Print(val) => {
+                                println!("{}", eval::eval(val));
+                            }
+
+                            command::Command::StepI => {
+                                ptracer.single_step();
+                                let status = ptracer.wait();
+                                if !status.is_stopped() {
+                                    println!("program finished");
+                                    break;
+                                }
+                            }
+                        }
                     }
-                } else if toks[0] == "i" {
-                    let regs = ptracer.get_regs();
-                    println!("ip={:x} sp={:x} bp={:x}",
-                             regs.ip(), regs.sp(), regs.bp());
-                } else if toks[0] == "b" {
-                    // TODO: Parse expression.
-                    let addr = toks[1].parse::<i64>().unwrap();
-                    let token = ptracer.poke_breakpoint(addr);
-                    breakpoints.insert(addr, token);
-                } else if toks[0] == "cont" {
-                    ptracer.cont();
-                    let status = ptracer.wait();
-                    if !status.is_stopped() {
-                        println!("program finished");
-                        break;
+                    Err(e) => {
+                        if e.len() > 0 {
+                            println!("{}", e);
+                        }
                     }
-                } else {
-                    println!("Unknown command: {}", toks[0]);
                 }
             },
             Err(ReadlineError::Interrupted) => {
