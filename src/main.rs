@@ -20,10 +20,19 @@ fn main() {
     let mut breakpoints = HashMap::new();
 
     let mut rl = Editor::<()>::new();
+    match std::env::home_dir() {
+        Some(mut path) => {
+            path.push(".vdb_history");
+            rl.load_history(&path);
+        }
+        None => println!("Impossible to get your home dir!"),
+    }
+
     loop {
         let readline = rl.readline("(vdb) ");
         match readline {
             Ok(line) => {
+                rl.add_history_entry(&line);
                 match command::parse(&line) {
                     Ok(cmd) => {
                         match cmd {
@@ -92,5 +101,13 @@ fn main() {
                 break;
             }
         }
+    }
+
+    match std::env::home_dir() {
+        Some(mut path) => {
+            path.push(".vdb_history");
+            rl.save_history(&path);
+        }
+        None => println!("Impossible to get your home dir!"),
     }
 }
