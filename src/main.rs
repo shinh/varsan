@@ -60,6 +60,16 @@ fn main() {
                                     break;
                                 }
                             }
+
+                            command::Command::X(num, base, addr) => {
+                                let addr = eval::eval(addr);
+                                for i in 0..num {
+                                    let addr = addr + (i * 4) as i64;
+                                    let data = ptracer.peek_word(addr);
+                                    println!("{:x}: {:x}", addr, data as i32);
+                                }
+                            }
+
                         }
                     }
                     Err(e) => {

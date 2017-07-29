@@ -11,6 +11,7 @@ pub enum Command {
     Info,
     Print (Expr),
     StepI,
+    X (usize, i32, Expr),
 }
 
 fn parse_num_from_result(r: Result<i64, std::num::ParseIntError>,
@@ -46,6 +47,16 @@ fn parse_print(s: &str) -> Result<Command, String> {
     }
 }
 
+fn parse_x(cmd: &str, s: &str) -> Result<Command, String> {
+    let mut num = 1;
+    let mut base = 16;
+    // TODO: Parse num and base.
+    match parse_expr(s) {
+        Ok(e) => Ok(Command::X(num, base, e)),
+        Err(e) => Err(e)
+    }
+}
+
 pub fn parse(line: &str) -> Result<Command, String> {
     let line = line.trim();
     let found = line.find(' ');
@@ -62,7 +73,13 @@ pub fn parse(line: &str) -> Result<Command, String> {
         "print",
         "si",
         "stepi",
+        "x",
     ];
+
+    if cmd.starts_with("x") && cmd.len() == 1 || cmd.starts_with("x/") {
+        return parse_x(cmd, rest);
+    }
+
     let mut cands = Vec::new();
     for name in command_names.iter() {
         if name.starts_with(cmd) {
