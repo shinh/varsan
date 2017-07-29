@@ -23,7 +23,11 @@ fn main() {
     match std::env::home_dir() {
         Some(mut path) => {
             path.push(".vdb_history");
-            rl.load_history(&path);
+            if let Err(_) = rl.load_history(&path) {
+                if path.exists() {
+                    println!("Failed to load history file: {:?}", path);
+                }
+            }
         }
         None => println!("Impossible to get your home dir!"),
     }
@@ -106,7 +110,9 @@ fn main() {
     match std::env::home_dir() {
         Some(mut path) => {
             path.push(".vdb_history");
-            rl.save_history(&path);
+            if let Err(_) = rl.save_history(&path) {
+                println!("Failed to save history file: {:?}", path);
+            }
         }
         None => println!("Impossible to get your home dir!"),
     }
