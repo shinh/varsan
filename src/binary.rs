@@ -66,7 +66,7 @@ impl<'a> Binary<'a> {
 
 #[test]
 fn test_c_binary() {
-    let bin = Binary::new("test/data/hello").unwrap();
+    let bin = Binary::new("test/data/hello".to_string()).unwrap();
     let mut found_count = 0;
     for sym in bin.syms() {
         if sym.name == "main" {

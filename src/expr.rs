@@ -41,3 +41,8 @@ fn test_num() {
     assert_eq!(Ok(Expr::Num(0xcc)), parse("0xcc"));
     assert_eq!(Ok(Expr::Num(493)), parse("0755"));
 }
+
+#[test]
+fn test_ident() {
+    assert_eq!(Ok(Expr::Ident("foo".to_string())), parse("foo"));
+}
