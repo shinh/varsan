@@ -18,16 +18,16 @@ impl ProcessState {
 }
 
 pub struct Registers {
-    gps: Vec<i64>,
-    ip: i64,
-    sp: i64,
-    bp: i64,
+    gps: Vec<u64>,
+    ip: u64,
+    sp: u64,
+    bp: u64,
 }
 
 impl Registers {
-    pub fn ip(&self) -> i64 { self.ip }
-    pub fn sp(&self) -> i64 { self.sp }
-    pub fn bp(&self) -> i64 { self.bp }
+    pub fn ip(&self) -> u64 { self.ip }
+    pub fn sp(&self) -> u64 { self.sp }
+    pub fn bp(&self) -> u64 { self.bp }
 }
 
 fn check_ptrace<'a>(retval: i64, msg: &'a str) -> i64 {
@@ -97,11 +97,11 @@ impl Ptracer {
             (buf.as_ptr() as *const u8).offset(self.target.gp_off)
         };
         for i in 0..gps.len() {
-            let mut r: i64 = 0xdeadbeef;
+            let mut r: u64 = 0xdeadbeef;
             if self.target.gp_size == 8 {
                 r = unsafe {
                     *(gp_ptr.offset((self.target.gp_size * i) as isize)
-                      as *const i64)
+                      as *const u64)
                 }
             } else {
                 assert!(false);
@@ -117,23 +117,23 @@ impl Ptracer {
         }
     }
 
-    pub fn peek_word(&self, addr: i64) -> i64 {
-        return check_ptrace!(libc::PTRACE_PEEKDATA, self.pid, addr, 0);
+    pub fn peek_word(&self, addr: u64) -> u64 {
+        return check_ptrace!(libc::PTRACE_PEEKDATA, self.pid, addr, 0) as u64;
     }
 
-    pub fn poke_word(&self, addr: i64, data: i64) {
-        check_ptrace!(libc::PTRACE_POKEDATA, self.pid, addr, data);
+    pub fn poke_word(&self, addr: u64, data: u64) {
+        check_ptrace!(libc::PTRACE_POKEDATA, self.pid, addr, data) as u64;
     }
 
-    pub fn poke_byte(&self, addr: i64, data: u8) -> u8 {
+    pub fn poke_byte(&self, addr: u64, data: u8) -> u8 {
         assert!(self.target.le);
         let orig = self.peek_word(addr);
-        let word = (orig & !0xff) | (data as i64);
+        let word = (orig & !0xff) | (data as u64);
         self.poke_word(addr, word);
         return (orig & 0xff) as u8;
     }
 
-    pub fn poke_breakpoint(&self, addr: i64) -> u8 {
+    pub fn poke_breakpoint(&self, addr: u64) -> u8 {
         assert_eq!(self.target.breakpoint_size, 1);
         return self.poke_byte(addr, self.target.breakpoint_op as u8);
     }

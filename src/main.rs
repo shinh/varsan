@@ -1,5 +1,6 @@
 mod binary;
 mod command;
+mod context;
 mod eval;
 mod expr;
 #[macro_use]
@@ -15,10 +16,12 @@ use rustyline::Editor;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
-    let bin = binary::Binary::new(&args[1]);
-    if bin.is_err() {
+    let ctx = context::Context::new(&args[1]);
+    if let Err(e) = ctx {
+        println!("{}", e);
         return;
     }
+    let ctx = ctx.unwrap();
 
     let mut ptracer = ptracer::Ptracer::new(
         args[1..args.len()].iter().collect());
@@ -47,7 +50,7 @@ fn main() {
                     Ok(cmd) => {
                         match cmd {
                             command::Command::Break(addr) => {
-                                let addr = eval::eval(addr);
+                                let addr = eval::eval(&ctx, addr);
                                 let token = ptracer.poke_breakpoint(addr);
                                 breakpoints.insert(addr, token);
                             }
@@ -68,7 +71,7 @@ fn main() {
                             }
 
                             command::Command::Print(val) => {
-                                println!("{}", eval::eval(val));
+                                println!("{}", eval::eval(&ctx, val));
                             }
 
                             command::Command::StepI => {
@@ -81,9 +84,9 @@ fn main() {
                             }
 
                             command::Command::X(num, base, addr) => {
-                                let addr = eval::eval(addr);
+                                let addr = eval::eval(&ctx, addr);
                                 for i in 0..num {
-                                    let addr = addr + (i * 4) as i64;
+                                    let addr = addr + (i * 4) as u64;
                                     let data = ptracer.peek_word(addr);
                                     println!("{:x}: {:x}", addr, data as i32);
                                 }

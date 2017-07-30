@@ -1,8 +1,10 @@
 use std;
 
+#[derive(PartialEq, Debug)]
 pub enum Expr {
     Empty,
-    Num (i64)
+    Num (i64),
+    Ident (String),
 }
 
 fn parse_num_from_result(r: Result<i64, std::num::ParseIntError>,
@@ -26,8 +28,16 @@ pub fn parse(s: &str) -> Result<Expr, String> {
         return parse_num_from_result(i64::from_str_radix(&s[2..], 16), s);
     } else if s.starts_with("0") {
         return parse_num_from_result(i64::from_str_radix(&s[1..], 8), s);
-    } else {
+    } else if s.chars().nth(0).unwrap().is_digit(10) {
         return parse_num_from_result(i64::from_str_radix(s, 10), s);
+    } else {
+        return Ok(Expr::Ident(String::from(s)));
     }
 }
 
+#[test]
+fn test_num() {
+    assert_eq!(Ok(Expr::Num(42)), parse("42"));
+    assert_eq!(Ok(Expr::Num(0xcc)), parse("0xcc"));
+    assert_eq!(Ok(Expr::Num(493)), parse("0755"));
+}

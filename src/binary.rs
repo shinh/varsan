@@ -7,8 +7,8 @@ use self::owning_ref::OwningHandle;
 use std;
 
 pub struct Symbol<'a> {
-    name: &'a str,
-    value: u64,
+    pub name: &'a str,
+    pub value: u64,
 }
 
 pub struct Binary<'a> {
@@ -17,12 +17,11 @@ pub struct Binary<'a> {
 }
 
 impl<'a> Binary<'a> {
-    pub fn new(filename: &str) -> Result<Binary, ()> {
+    pub fn new(filename: String) -> Result<Self, String> {
         let mem = memmap::Mmap::open_path(
-            filename, memmap::Protection::Read);
+            &filename, memmap::Protection::Read);
         if mem.is_err() {
-            println!("Failed to open: {}", filename);
-            return Err(());
+            return Err(format!("Failed to open: {}", filename));
         }
         let mem = mem.unwrap();
         let o = OwningHandle::try_new(Box::new(mem), |mem| -> Result<_, ()> {
@@ -32,7 +31,7 @@ impl<'a> Binary<'a> {
             Ok(Box::new(file))
         }).unwrap();
         return Ok(Binary {
-            filename: filename.to_string(),
+            filename: filename,
             o: o,
         });
     }
