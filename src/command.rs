@@ -1,6 +1,7 @@
 use expr;
 use expr::Expr;
 
+#[derive(PartialEq, Debug)]
 pub enum Command {
     Break (Expr),
     Cont,
@@ -29,9 +30,13 @@ fn parse_x(cmd: &str, s: &str) -> Result<Command, String> {
 
 pub fn parse(line: &str) -> Result<Command, String> {
     let line = line.trim();
-    let found = try!(line.find(' ').ok_or(String::from("")));
-    let cmd = &line[..found];
-    let rest = &line[found + 1..];
+    if line.len() == 0 {
+        return Err("".to_string());
+    }
+    let (cmd, rest) = match line.find(' ') {
+        Some(found) => (&line[..found], &line[found+1..]),
+        None => (line, ""),
+    };
 
     let command_names = [
         "break",
@@ -68,4 +73,19 @@ pub fn parse(line: &str) -> Result<Command, String> {
         "si" | "stepi"  => Ok(Command::StepI),
         _ => Err(String::from("Shouldn't happen"))
     }
+}
+
+#[test]
+fn test_cont() {
+    assert_eq!(Ok(Command::Cont), parse("cont"));
+}
+
+#[test]
+fn test_err() {
+    assert_eq!(Err("No such command: xxx".to_string()), parse("xxx"));
+}
+
+#[test]
+fn test_empty() {
+    assert_eq!(Err("".to_string()), parse(" "));
 }
