@@ -1,3 +1,4 @@
+mod binary;
 mod command;
 mod eval;
 #[macro_use]
@@ -13,6 +14,10 @@ use rustyline::Editor;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
+    let bin = binary::Binary::new(&args[1]);
+    if bin.is_err() {
+        return;
+    }
 
     let mut ptracer = ptracer::Ptracer::new(
         args[1..args.len()].iter().collect());

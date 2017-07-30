@@ -7,3 +7,6 @@ authors = ["Shinichiro Hamaji <shinichiro.hamaji@gmail.com>"]
 libc = "*"
 regex-syntax = "*"
 rustyline = "1.0.0"
+memmap = "*"
+goblin = "*"
+owning_ref = "0.2.4"
