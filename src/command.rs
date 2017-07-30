@@ -12,10 +12,11 @@ pub enum Command {
 }
 
 fn parse_print(s: &str) -> Result<Command, String> {
-    match expr::parse(s) {
-        Ok(e) => Ok(Command::Print(e)),
-        Err(e) => Err(e)
-    }
+    Ok(Command::Print(try!(expr::parse(s))))
+}
+
+fn parse_break(s: &str) -> Result<Command, String> {
+    Ok(Command::Break(try!(expr::parse(s))))
 }
 
 fn parse_x(cmd: &str, s: &str) -> Result<Command, String> {
@@ -66,7 +67,7 @@ pub fn parse(line: &str) -> Result<Command, String> {
     }
 
     match *cands[0] {
-        "break" => Ok(Command::Break(Expr::Num(42))),
+        "break" => parse_break(rest),
         "continue" => Ok(Command::Cont),
         "info" => Ok(Command::Info),
         "print" => parse_print(rest),
@@ -78,6 +79,17 @@ pub fn parse(line: &str) -> Result<Command, String> {
 #[test]
 fn test_cont() {
     assert_eq!(Ok(Command::Cont), parse("cont"));
+}
+
+#[test]
+fn test_print() {
+    assert_eq!(Ok(Command::Print(Expr::Num(42))), parse("p 42"));
+}
+
+#[test]
+fn test_break() {
+    assert_eq!(Ok(Command::Break(Expr::Ident("main".to_string()))),
+               parse("b main"));
 }
 
 #[test]
