@@ -18,18 +18,17 @@ pub struct Binary<'a> {
 
 impl<'a> Binary<'a> {
     pub fn new(filename: String) -> Result<Self, String> {
-        let mem = memmap::Mmap::open_path(
-            &filename, memmap::Protection::Read);
-        if mem.is_err() {
-            return Err(format!("Failed to open: {}", filename));
-        }
-        let mem = mem.unwrap();
-        let o = OwningHandle::try_new(Box::new(mem), |mem| -> Result<_, ()> {
-            let mem = unsafe { &*mem };
-            let file = elf::Elf::parse(unsafe { mem.as_slice() })
-                .expect("Should parse object file");
-            Ok(Box::new(file))
-        }).unwrap();
+        let mem = try!(
+            memmap::Mmap::open_path(&filename, memmap::Protection::Read)
+                .or(Err(format!("Failed to open: {}", &filename))));
+        let o = try!(OwningHandle::try_new(
+            Box::new(mem), |mem| -> Result<_, _> {
+                let mem = unsafe { &*mem };
+                match elf::Elf::parse(unsafe { mem.as_slice() }) {
+                    Ok(file) => Ok(Box::new(file)),
+                    Err(_) => Err(format!("Parse failed: {}", &filename)),
+                }
+            }));
         return Ok(Binary {
             filename: filename,
             o: o,

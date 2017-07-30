@@ -29,12 +29,9 @@ fn parse_x(cmd: &str, s: &str) -> Result<Command, String> {
 
 pub fn parse(line: &str) -> Result<Command, String> {
     let line = line.trim();
-    let found = line.find(' ');
-    if found.is_none() {
-        return Err(String::from(""));
-    }
-    let cmd = &line[..found.unwrap()];
-    let rest = &line[found.unwrap() + 1..];
+    let found = try!(line.find(' ').ok_or(String::from("")));
+    let cmd = &line[..found];
+    let rest = &line[found + 1..];
 
     let command_names = [
         "break",
