@@ -1,4 +1,4 @@
-use command::Expr;
+use expr::Expr;
 
 pub fn eval(e: Expr) -> i64 {
     match e {

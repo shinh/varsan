@@ -1,6 +1,7 @@
 mod binary;
 mod command;
 mod eval;
+mod expr;
 #[macro_use]
 mod libc_utils;
 mod ptracer;
