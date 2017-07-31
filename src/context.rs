@@ -7,7 +7,7 @@ use std::collections::HashMap;
 pub struct Context<'a> {
     main_binary: binary::Binary<'a>,
     symtab: HashMap<&'a str, u64>,
-    ptracer: ptracer::Ptracer,
+    ptracer: Option<ptracer::Ptracer>,
     breakpoints: HashMap<u64, u8>,
     done: bool,
 }
@@ -23,7 +23,7 @@ impl<'a> Context<'a> {
         Ok(Self {
             main_binary: bin,
             symtab: symtab,
-            ptracer: ptracer,
+            ptracer: Some(ptracer),
             breakpoints: HashMap::new(),
             done: false,
         })
@@ -35,17 +35,28 @@ impl<'a> Context<'a> {
         return self.symtab.get(name);
     }
 
-    pub fn run_command(&mut self, cmd: command::Command) -> String {
+    pub fn run_command(&mut self, cmd: command::Command)
+                       -> Result<String, String> {
         match cmd {
             command::Command::Break(addr) => {
+                if self.ptracer.is_none() {
+                    return Err("The program is not being run.".to_string());
+                }
+                let ptracer = self.ptracer.as_ref().unwrap();
+
                 let addr = eval::eval(self, addr);
-                let token = self.ptracer.poke_breakpoint(addr);
+                let token = ptracer.poke_breakpoint(addr);
                 self.breakpoints.insert(addr, token);
             }
 
             command::Command::Cont => {
-                self.ptracer.cont();
-                let status = self.ptracer.wait();
+                if self.ptracer.is_none() {
+                    return Err("The program is not being run.".to_string());
+                }
+                let ptracer = self.ptracer.as_mut().unwrap();
+
+                ptracer.cont();
+                let status = ptracer.wait();
                 if !status.is_stopped() {
                     println!("program finished");
                     self.done = true;
@@ -53,7 +64,12 @@ impl<'a> Context<'a> {
             }
 
             command::Command::Info => {
-                let regs = self.ptracer.get_regs();
+                if self.ptracer.is_none() {
+                    return Err("The program is not being run.".to_string());
+                }
+                let ptracer = self.ptracer.as_mut().unwrap();
+
+                let regs = ptracer.get_regs();
                 println!("ip={:x} sp={:x} bp={:x}",
                          regs.ip(), regs.sp(), regs.bp());
             }
@@ -63,8 +79,13 @@ impl<'a> Context<'a> {
             }
 
             command::Command::StepI => {
-                self.ptracer.single_step();
-                let status = self.ptracer.wait();
+                if self.ptracer.is_none() {
+                    return Err("The program is not being run.".to_string());
+                }
+                let ptracer = self.ptracer.as_mut().unwrap();
+
+                ptracer.single_step();
+                let status = ptracer.wait();
                 if !status.is_stopped() {
                     println!("program finished");
                     self.done = true;
@@ -72,15 +93,20 @@ impl<'a> Context<'a> {
             }
 
             command::Command::X(num, base, addr) => {
+                if self.ptracer.is_none() {
+                    return Err("The program is not being run.".to_string());
+                }
+                let ptracer = self.ptracer.as_ref().unwrap();
+
                 let addr = eval::eval(self, addr);
                 for i in 0..num {
                     let addr = addr + (i * 4) as u64;
-                    let data = self.ptracer.peek_word(addr);
+                    let data = ptracer.peek_word(addr);
                     println!("{:x}: {:x}", addr, data as i32);
                 }
             }
 
         }
-        return "".to_string();
+        return Ok("".to_string());
     }
 }

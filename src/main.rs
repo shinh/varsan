@@ -46,9 +46,15 @@ fn main() {
                 rl.add_history_entry(&line);
                 match command::parse(&line) {
                     Ok(cmd) => {
-                        let result = ctx.run_command(cmd);
-                        if result.len() > 0 {
-                            println!("{}", result);
+                        match ctx.run_command(cmd) {
+                            Ok(result) => {
+                                if result.len() > 0 {
+                                    println!("{}", result);
+                                }
+                            }
+                            Err(err) => {
+                                println!("{}", err);
+                            }
                         }
                         if ctx.is_done() {
                             break;
