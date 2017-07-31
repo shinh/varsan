@@ -16,17 +16,15 @@ use rustyline::Editor;
 
 fn main() {
     let args: Vec<_> = std::env::args().collect();
-    let ctx = context::Context::new(&args[1]);
+
+    let mut ptracer = ptracer::Ptracer::new(
+        args[1..args.len()].iter().collect());
+    let mut ctx = context::Context::new(&args[1], ptracer);
     if let Err(e) = ctx {
         println!("{}", e);
         return;
     }
-    let ctx = ctx.unwrap();
-
-    let mut ptracer = ptracer::Ptracer::new(
-        args[1..args.len()].iter().collect());
-
-    let mut breakpoints = HashMap::new();
+    let mut ctx = ctx.unwrap();
 
     let mut rl = Editor::<()>::new();
     match std::env::home_dir() {
@@ -48,50 +46,12 @@ fn main() {
                 rl.add_history_entry(&line);
                 match command::parse(&line) {
                     Ok(cmd) => {
-                        match cmd {
-                            command::Command::Break(addr) => {
-                                let addr = eval::eval(&ctx, addr);
-                                let token = ptracer.poke_breakpoint(addr);
-                                breakpoints.insert(addr, token);
-                            }
-
-                            command::Command::Cont => {
-                                ptracer.cont();
-                                let status = ptracer.wait();
-                                if !status.is_stopped() {
-                                    println!("program finished");
-                                    break;
-                                }
-                            }
-
-                            command::Command::Info => {
-                                let regs = ptracer.get_regs();
-                                println!("ip={:x} sp={:x} bp={:x}",
-                                         regs.ip(), regs.sp(), regs.bp());
-                            }
-
-                            command::Command::Print(val) => {
-                                println!("{}", eval::eval(&ctx, val));
-                            }
-
-                            command::Command::StepI => {
-                                ptracer.single_step();
-                                let status = ptracer.wait();
-                                if !status.is_stopped() {
-                                    println!("program finished");
-                                    break;
-                                }
-                            }
-
-                            command::Command::X(num, base, addr) => {
-                                let addr = eval::eval(&ctx, addr);
-                                for i in 0..num {
-                                    let addr = addr + (i * 4) as u64;
-                                    let data = ptracer.peek_word(addr);
-                                    println!("{:x}: {:x}", addr, data as i32);
-                                }
-                            }
-
+                        let result = ctx.run_command(cmd);
+                        if result.len() > 0 {
+                            println!("{}", result);
+                        }
+                        if ctx.is_done() {
+                            break;
                         }
                     }
                     Err(e) => {
