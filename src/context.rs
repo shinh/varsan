@@ -43,6 +43,11 @@ impl<'a> Context<'a> {
         return self.symtab.get(name);
     }
 
+    fn pid(&self) -> i32 {
+        assert!(self.ptracer.is_some());
+        return self.ptracer.as_ref().unwrap().pid() as i32;
+    }
+
     pub fn wait(&mut self) -> Result<String, String> {
         assert!(self.ptracer.is_some());
         assert!(self.needs_wait);
@@ -51,12 +56,26 @@ impl<'a> Context<'a> {
             let ptracer = self.ptracer.as_mut().unwrap();
             ptracer.wait()
         };
-        if !status.is_stopped() {
-            self.breakpoints.notify_finish();
-            self.ptracer = None;
-            return Ok("program finished".to_string());
+
+        match status {
+            ptracer::ProcessState::Stop(_) => {
+                return Ok("".to_string());
+            }
+            ptracer::ProcessState::Exit(st) => {
+                let pid = self.pid();
+                self.breakpoints.notify_finish();
+                self.ptracer = None;
+                return Ok(format!("Process {} exited with code {}",
+                                  pid, st));
+            }
+            ptracer::ProcessState::Signal(sig) => {
+                let pid = self.pid();
+                self.breakpoints.notify_finish();
+                self.ptracer = None;
+                return Ok(format!("Process {} signaled with code {}",
+                                  pid, sig));
+            }
         }
-        return Ok("".to_string());
     }
 
     pub fn cont(&mut self) -> Result<String, String> {

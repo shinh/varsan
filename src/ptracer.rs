@@ -5,15 +5,18 @@ use std;
 use libc_utils::*;
 use target_desc;
 
-pub struct ProcessState {
-    status: i32
+pub enum ProcessState {
+    Stop (i32),
+    Exit (i32),
+    Signal (i32),
 }
 
 impl ProcessState {
     pub fn is_stopped(&self) -> bool {
-        unsafe {
-            libc::WIFSTOPPED(self.status)
+        if let ProcessState::Stop(_) = *self {
+            return true;
         }
+        return false;
     }
 }
 
@@ -88,6 +91,8 @@ impl Ptracer {
         return ptracer;
     }
 
+    pub fn pid(&self) -> libc::pid_t { self.pid }
+
     pub fn single_step(&self) {
         check_ptrace!(libc::PTRACE_SINGLESTEP, self.pid, 0, 0);
     }
@@ -151,8 +156,17 @@ impl Ptracer {
         unsafe {
             check_libc!(libc::wait(&mut status));
         }
-        return ProcessState {
-            status: status
-        };
+
+        unsafe {
+            if libc::WIFSTOPPED(status) {
+                return ProcessState::Stop(libc::WSTOPSIG(status));
+            } else if libc::WIFEXITED(status) {
+                return ProcessState::Exit(libc::WEXITSTATUS(status));
+            } else if libc::WIFSIGNALED(status) {
+                return ProcessState::Signal(libc::WTERMSIG(status));
+            } else {
+                panic!("Unknown status: {}", status);
+            }
+        }
     }
 }
