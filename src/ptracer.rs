@@ -51,7 +51,7 @@ pub struct Ptracer {
 }
 
 impl Ptracer {
-    pub fn new(args: Vec<&String>) -> Self {
+    pub fn new(args: &Vec<String>) -> Self {
         let pid: libc::pid_t;
         unsafe {
             pid = libc::fork();
@@ -59,11 +59,15 @@ impl Ptracer {
         check_libc(pid, "fork");
 
         if pid == 0 {
+            // Ensure args are null terminated.
+            let args: Vec<String> =
+                args.iter().map(|a|format!("{}\0", a)).collect();
             let mut args: Vec<*const libc::c_char> =
                 args.iter().map(|a|a.as_bytes().as_ptr()
-                                     as *const libc::c_char).collect();
+                                as *const libc::c_char).collect();
+            args.push(std::ptr::null());
+            check_ptrace!(libc::PTRACE_TRACEME, 0, 0, 0);
             unsafe {
-                check_libc!(libc::ptrace(libc::PTRACE_TRACEME, 0, 0, 0) as i32);
                 check_libc!(libc::execv(args[0], args.as_mut_ptr()));
                 libc::_exit(1);
             }

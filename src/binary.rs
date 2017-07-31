@@ -35,6 +35,8 @@ impl<'a> Binary<'a> {
         });
     }
 
+    pub fn filename(&self) -> &String { &self.filename }
+
     pub fn syms(&self) -> Vec<Symbol<'a>> {
         let syms = if self.o.syms.len() == 0 {
             &self.o.dynsyms

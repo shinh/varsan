@@ -7,6 +7,7 @@ pub enum Command {
     Cont,
     Info,
     Print (Expr),
+    Run (Vec<String>),
     StepI,
     X (usize, i32, Expr),
 }
@@ -29,6 +30,10 @@ fn parse_x(cmd: &str, s: &str) -> Result<Command, String> {
     }
 }
 
+fn parse_run(s: &str) -> Result<Command, String> {
+    Ok(Command::Run(s.split_whitespace().map(|a|a.to_string()).collect()))
+}
+
 pub fn parse(line: &str) -> Result<Command, String> {
     let line = line.trim();
     if line.len() == 0 {
@@ -44,6 +49,7 @@ pub fn parse(line: &str) -> Result<Command, String> {
         "continue",
         "info",
         "print",
+        "run",
         "si",
         "stepi",
         "x",
@@ -71,6 +77,7 @@ pub fn parse(line: &str) -> Result<Command, String> {
         "continue" => Ok(Command::Cont),
         "info" => Ok(Command::Info),
         "print" => parse_print(rest),
+        "run" => parse_run(rest),
         "si" | "stepi"  => Ok(Command::StepI),
         _ => Err(String::from("Shouldn't happen"))
     }

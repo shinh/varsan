@@ -4,6 +4,7 @@ mod command;
 mod context;
 mod eval;
 mod expr;
+mod flags;
 #[macro_use]
 mod libc_utils;
 mod ptracer;
@@ -16,11 +17,9 @@ use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
 fn main() {
-    let args: Vec<_> = std::env::args().collect();
+    let flags = flags::parse(std::env::args().collect());
 
-    let mut ptracer = ptracer::Ptracer::new(
-        args[1..args.len()].iter().collect());
-    let mut ctx = context::Context::new(&args[1], ptracer);
+    let mut ctx = context::Context::new(&flags.args);
     if let Err(e) = ctx {
         println!("{}", e);
         return;

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 pub struct Context<'a> {
     main_binary: binary::Binary<'a>,
+    args: Vec<String>,
     symtab: HashMap<&'a str, u64>,
     ptracer: Option<ptracer::Ptracer>,
     breakpoints: breakpoint::BreakpointManager,
@@ -14,17 +15,17 @@ pub struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    pub fn new(main_binary: &str, ptracer: ptracer::Ptracer)
-               -> Result<Self, String> {
-        let bin = try!(binary::Binary::new(main_binary.to_string()));
+    pub fn new(args: &Vec<String>) -> Result<Self, String> {
+        let bin = try!(binary::Binary::new(args[0].clone()));
         let mut symtab = HashMap::new();
         for sym in bin.syms() {
             symtab.insert(sym.name, sym.value);
         }
         Ok(Self {
             main_binary: bin,
+            args: args.iter().map(|a|a.clone()).collect(),
             symtab: symtab,
-            ptracer: Some(ptracer),
+            ptracer: None,
             breakpoints: breakpoint::BreakpointManager::new(),
             done: false,
         })
@@ -34,6 +35,22 @@ impl<'a> Context<'a> {
 
     pub fn resolve(&self, name: &str) -> Option<&u64> {
         return self.symtab.get(name);
+    }
+
+    pub fn cont(&mut self) -> Result<String, String> {
+        if self.ptracer.is_none() {
+            return Err("The program is not being run.".to_string());
+        }
+        let ptracer = self.ptracer.as_mut().unwrap();
+
+        ptracer.cont();
+        let status = ptracer.wait();
+        if !status.is_stopped() {
+            self.done = true;
+            self.breakpoints.notify_finish();
+            return Ok("program finished".to_string());
+        }
+        return Ok("".to_string());
     }
 
     pub fn run_command(&mut self, cmd: command::Command)
@@ -48,17 +65,7 @@ impl<'a> Context<'a> {
             }
 
             command::Command::Cont => {
-                if self.ptracer.is_none() {
-                    return Err("The program is not being run.".to_string());
-                }
-                let ptracer = self.ptracer.as_mut().unwrap();
-
-                ptracer.cont();
-                let status = ptracer.wait();
-                if !status.is_stopped() {
-                    println!("program finished");
-                    self.done = true;
-                }
+                return self.cont();
             }
 
             command::Command::Info => {
@@ -74,6 +81,18 @@ impl<'a> Context<'a> {
 
             command::Command::Print(val) => {
                 println!("{}", eval::eval(self, val));
+            }
+
+            command::Command::Run(args) => {
+                let mut argv = vec![self.main_binary.filename().clone()];
+                if args.len() > 0 {
+                    argv.extend(args);
+                } else {
+                    argv.extend(self.args.iter().cloned());
+                }
+                self.ptracer = Some(ptracer::Ptracer::new(&argv));
+                self.breakpoints.notify_start(&self.ptracer.as_ref().unwrap());
+                return self.cont();
             }
 
             command::Command::StepI => {

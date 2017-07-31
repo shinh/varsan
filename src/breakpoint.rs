@@ -33,7 +33,7 @@ impl BreakpointManager {
         }
     }
 
-    pub fn notify_finish(&mut self, ptracer: &ptracer::Ptracer) {
+    pub fn notify_finish(&mut self) {
         for bp in &mut self.breakpoints {
             assert!(bp.is_active);
             bp.token = 0;
