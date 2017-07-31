@@ -11,7 +11,6 @@ pub struct Context<'a> {
     symtab: HashMap<&'a str, u64>,
     ptracer: Option<ptracer::Ptracer>,
     breakpoints: breakpoint::BreakpointManager,
-    done: bool,
 }
 
 impl<'a> Context<'a> {
@@ -22,11 +21,8 @@ impl<'a> Context<'a> {
             symtab: HashMap::new(),
             ptracer: None,
             breakpoints: breakpoint::BreakpointManager::new(),
-            done: false,
         }
     }
-
-    pub fn is_done(&self) -> bool { self.done }
 
     pub fn set_main_binary(&mut self, main_binary: &str)
                            -> Result<String, String> {
@@ -43,20 +39,27 @@ impl<'a> Context<'a> {
         return self.symtab.get(name);
     }
 
+    fn check_status(&mut self, status: ptracer::ProcessState)
+                    -> Result<String, String> {
+        if !status.is_stopped() {
+            self.breakpoints.notify_finish();
+            self.ptracer = None;
+            return Ok("program finished".to_string());
+        }
+        return Ok("".to_string());
+    }
+
     pub fn cont(&mut self) -> Result<String, String> {
         if self.ptracer.is_none() {
             return Err("The program is not being run.".to_string());
         }
-        let ptracer = self.ptracer.as_mut().unwrap();
 
-        ptracer.cont();
-        let status = ptracer.wait();
-        if !status.is_stopped() {
-            self.done = true;
-            self.breakpoints.notify_finish();
-            return Ok("program finished".to_string());
-        }
-        return Ok("".to_string());
+        let status = {
+            let ptracer = self.ptracer.as_mut().unwrap();
+            ptracer.cont();
+            ptracer.wait()
+        };
+        return self.check_status(status);
     }
 
     pub fn run(&mut self, args: Vec<String>) -> Result<String, String> {
@@ -114,14 +117,12 @@ impl<'a> Context<'a> {
                 if self.ptracer.is_none() {
                     return Err("The program is not being run.".to_string());
                 }
-                let ptracer = self.ptracer.as_mut().unwrap();
-
-                ptracer.single_step();
-                let status = ptracer.wait();
-                if !status.is_stopped() {
-                    println!("program finished");
-                    self.done = true;
-                }
+                let status = {
+                    let ptracer = self.ptracer.as_mut().unwrap();
+                    ptracer.single_step();
+                    ptracer.wait()
+                };
+                return self.check_status(status);
             }
 
             command::Command::X(num, base, addr) => {

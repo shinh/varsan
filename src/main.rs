@@ -41,7 +41,7 @@ fn main() {
     }
 
     loop {
-        let readline = rl.readline("(vdb) ");
+        let readline = rl.readline(&format!("{}", "(vdb) ".bold()));
         match readline {
             Ok(line) => {
                 rl.add_history_entry(&line);
@@ -56,9 +56,6 @@ fn main() {
                             Err(err) => {
                                 println!("{}", err.red());
                             }
-                        }
-                        if ctx.is_done() {
-                            break;
                         }
                     }
                     Err(e) => {
