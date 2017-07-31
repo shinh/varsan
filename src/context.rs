@@ -3,6 +3,7 @@ use breakpoint;
 use command;
 use eval;
 use ptracer;
+use target_desc;
 use std::collections::HashMap;
 
 pub struct Context<'a> {
@@ -13,6 +14,8 @@ pub struct Context<'a> {
     breakpoints: breakpoint::BreakpointManager,
     needs_wait: bool,
     regs: ptracer::Registers,
+    target: target_desc::Target,
+    cur_breakpoint: i32,
 }
 
 impl<'a> Context<'a> {
@@ -25,6 +28,8 @@ impl<'a> Context<'a> {
             breakpoints: breakpoint::BreakpointManager::new(),
             needs_wait: false,
             regs: ptracer::Registers::empty(),
+            target: target_desc::get_target(),
+            cur_breakpoint: 0,
         }
     }
 
@@ -51,8 +56,12 @@ impl<'a> Context<'a> {
     }
 
     pub fn wait(&mut self) -> Result<String, String> {
-        assert!(self.ptracer.is_some());
         assert!(self.needs_wait);
+        return self.wait_impl(false);
+    }
+
+    fn wait_impl(&mut self, is_single_step: bool) -> Result<String, String> {
+        assert!(self.ptracer.is_some());
         self.needs_wait = false;
         let status = {
             let ptracer = self.ptracer.as_mut().unwrap();
@@ -61,14 +70,24 @@ impl<'a> Context<'a> {
 
         match status {
             ptracer::ProcessState::Stop(_) => {
-                self.regs = self.ptracer.as_ref().unwrap().get_regs();
-                match self.breakpoints.find_by_addr(self.regs.ip()) {
+                let ptracer = self.ptracer.as_ref().unwrap();
+                self.regs = ptracer.get_regs();
+                if is_single_step {
+                    return Ok("".to_string());
+                }
+
+                let ip = self.regs.ip() - self.target.breakpoint_size as u64;
+                match self.breakpoints.find_by_addr(ip) {
                     Some(bp) => {
+                        self.regs.update_ip(ip, &self.target);
+                        ptracer.set_regs(&self.regs);
+                        ptracer.poke_byte(ip, bp.token());
+                        self.cur_breakpoint = bp.id();
                         return Ok(format!("Breakpoint {}, 0x{:x}",
                                           bp.id(), self.regs.ip()));
                     }
                     None => {
-                        return Ok("TODO!".to_string());
+                        return Ok("".to_string());
                     }
                 }
             }
@@ -94,6 +113,16 @@ impl<'a> Context<'a> {
             return Err("The program is not being run.".to_string());
         }
         let ptracer = self.ptracer.as_mut().unwrap();
+
+        if self.cur_breakpoint != 0 {
+            let bp = self.breakpoints.find_by_id(self.cur_breakpoint);
+            if let Some(bp) = bp {
+                ptracer.single_step();
+                ptracer.wait();
+            }
+            self.cur_breakpoint = 0;
+        }
+
         ptracer.cont();
         assert!(!self.needs_wait);
         self.needs_wait = true;
@@ -122,10 +151,11 @@ impl<'a> Context<'a> {
         if self.ptracer.is_none() {
             return Err("The program is not being run.".to_string());
         }
-        let ptracer = self.ptracer.as_mut().unwrap();
-        ptracer.single_step();
-        assert!(!self.needs_wait);
-        self.needs_wait = true;
+        {
+            let ptracer = self.ptracer.as_mut().unwrap();
+            ptracer.single_step();
+        }
+        try!(self.wait_impl(true));
         return Ok("".to_string());
     }
 

@@ -3,6 +3,7 @@ use ptracer;
 pub struct Breakpoint {
     id: i32,
     addr: u64,
+    // TODO: token should be u32 or u64 for non-x86.
     token: u8,
     is_active: bool,
 }
@@ -10,6 +11,7 @@ pub struct Breakpoint {
 impl Breakpoint {
     pub fn id(&self) -> i32 { self.id }
     pub fn addr(&self) -> u64 { self.addr }
+    pub fn token(&self) -> u8 { self.token }
 }
 
 pub struct BreakpointManager {
@@ -77,6 +79,15 @@ impl BreakpointManager {
     pub fn find_by_addr(&self, addr: u64) -> Option<&Breakpoint> {
         for bp in &self.breakpoints {
             if bp.addr == addr {
+                return Some(bp);
+            }
+        }
+        return None;
+    }
+
+    pub fn find_by_id(&self, id: i32) -> Option<&Breakpoint> {
+        for bp in &self.breakpoints {
+            if bp.id == id {
                 return Some(bp);
             }
         }

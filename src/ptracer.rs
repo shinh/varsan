@@ -31,6 +31,7 @@ impl Registers {
     pub fn ip(&self) -> u64 { self.ip }
     pub fn sp(&self) -> u64 { self.sp }
     pub fn bp(&self) -> u64 { self.bp }
+
     pub fn empty() -> Self {
         Self {
             gps: vec!(),
@@ -38,6 +39,20 @@ impl Registers {
             sp: 0,
             bp: 0,
         }
+    }
+
+    pub fn clone(&self) -> Self {
+        Self {
+            gps: self.gps.clone(),
+            ip: self.ip,
+            sp: self.sp,
+            bp: self.bp,
+        }
+    }
+
+    pub fn update_ip(&mut self, ip: u64, target: &target_desc::Target) {
+        self.ip = ip;
+        self.gps[target.ip_index] = ip;
     }
 }
 
@@ -126,14 +141,16 @@ impl Ptracer {
             gps[i] = r;
         }
 
-        let ip = gps[self.target.ip_index] - self.target.breakpoint_size as u64;
-        gps[self.target.ip_index] = ip;
         return Registers {
-            ip: ip,
+            ip: gps[self.target.ip_index],
             sp: gps[self.target.sp_index],
             bp: gps[self.target.bp_index],
             gps: gps,
         }
+    }
+
+    pub fn set_regs(&self, regs: &Registers) {
+        check_ptrace!(libc::PTRACE_SETREGS, self.pid, 0, regs.gps.as_ptr());
     }
 
     pub fn peek_word(&self, addr: u64) -> u64 {
