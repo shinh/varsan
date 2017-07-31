@@ -64,6 +64,19 @@ fn main() {
                         }
                     }
                 }
+
+                if ctx.needs_wait() {
+                    match ctx.wait() {
+                        Ok(result) => {
+                            if result.len() > 0 {
+                                println!("{}", result);
+                            }
+                        }
+                        Err(err) => {
+                            println!("{}", err.red());
+                        }
+                    }
+                }
             },
             Err(ReadlineError::Interrupted) => {
                 println!("CTRL-C");

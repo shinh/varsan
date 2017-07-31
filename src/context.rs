@@ -11,6 +11,7 @@ pub struct Context<'a> {
     symtab: HashMap<&'a str, u64>,
     ptracer: Option<ptracer::Ptracer>,
     breakpoints: breakpoint::BreakpointManager,
+    needs_wait: bool,
 }
 
 impl<'a> Context<'a> {
@@ -21,6 +22,7 @@ impl<'a> Context<'a> {
             symtab: HashMap::new(),
             ptracer: None,
             breakpoints: breakpoint::BreakpointManager::new(),
+            needs_wait: false,
         }
     }
 
@@ -35,12 +37,20 @@ impl<'a> Context<'a> {
         return Ok(format!("Reading symbols from {}...done.", main_binary));
     }
 
+    pub fn needs_wait(&self) -> bool { self.needs_wait }
+
     pub fn resolve(&self, name: &str) -> Option<&u64> {
         return self.symtab.get(name);
     }
 
-    fn check_status(&mut self, status: ptracer::ProcessState)
-                    -> Result<String, String> {
+    pub fn wait(&mut self) -> Result<String, String> {
+        assert!(self.ptracer.is_some());
+        assert!(self.needs_wait);
+        self.needs_wait = false;
+        let status = {
+            let ptracer = self.ptracer.as_mut().unwrap();
+            ptracer.wait()
+        };
         if !status.is_stopped() {
             self.breakpoints.notify_finish();
             self.ptracer = None;
@@ -53,13 +63,11 @@ impl<'a> Context<'a> {
         if self.ptracer.is_none() {
             return Err("The program is not being run.".to_string());
         }
-
-        let status = {
-            let ptracer = self.ptracer.as_mut().unwrap();
-            ptracer.cont();
-            ptracer.wait()
-        };
-        return self.check_status(status);
+        let ptracer = self.ptracer.as_mut().unwrap();
+        ptracer.cont();
+        assert!(!self.needs_wait);
+        self.needs_wait = true;
+        return Ok("Continueing.".to_string());
     }
 
     pub fn run(&mut self, args: Vec<String>) -> Result<String, String> {
@@ -76,7 +84,19 @@ impl<'a> Context<'a> {
         }
         self.ptracer = Some(ptracer::Ptracer::new(&argv));
         self.breakpoints.notify_start(&self.ptracer.as_ref().unwrap());
-        return self.cont();
+        try!(self.cont());
+        return Ok(format!("Starting program: {}", argv[0]));
+    }
+
+    pub fn single_step(&mut self) -> Result<String, String> {
+        if self.ptracer.is_none() {
+            return Err("The program is not being run.".to_string());
+        }
+        let ptracer = self.ptracer.as_mut().unwrap();
+        ptracer.single_step();
+        assert!(!self.needs_wait);
+        self.needs_wait = true;
+        return Ok("".to_string());
     }
 
     pub fn run_command(&mut self, cmd: command::Command)
@@ -114,15 +134,7 @@ impl<'a> Context<'a> {
             }
 
             command::Command::StepI => {
-                if self.ptracer.is_none() {
-                    return Err("The program is not being run.".to_string());
-                }
-                let status = {
-                    let ptracer = self.ptracer.as_mut().unwrap();
-                    ptracer.single_step();
-                    ptracer.wait()
-                };
-                return self.check_status(status);
+                return self.single_step();
             }
 
             command::Command::X(num, base, addr) => {
