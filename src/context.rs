@@ -33,6 +33,10 @@ impl<'a> Context<'a> {
         }
     }
 
+    pub fn ip(&self) -> u64 { self.regs.ip() }
+
+    pub fn is_running(&self) -> bool { self.ptracer.is_some() }
+
     pub fn set_main_binary(&mut self, main_binary: &str)
                            -> Result<String, String> {
         self.symtab.clear();
@@ -159,15 +163,18 @@ impl<'a> Context<'a> {
         return Ok("".to_string());
     }
 
+    pub fn add_breakpoint(&mut self, addr: u64) -> Result<String, String> {
+        let bp = self.breakpoints.add(addr, true,
+                                      self.ptracer.as_ref());
+        return Ok(format!("Breakpoint {} at 0x{:x}", bp.id(), bp.addr()));
+    }
+
     pub fn run_command(&mut self, cmd: command::Command)
                        -> Result<String, String> {
         match cmd {
             command::Command::Break(addr) => {
                 let addr = eval::eval(self, addr);
-                let bp = self.breakpoints.add(addr, true,
-                                              self.ptracer.as_ref());
-                return Ok(format!("Breakpoint {} at 0x{:x}",
-                                  bp.id(), bp.addr()));
+                self.add_breakpoint(addr);
             }
 
             command::Command::Cont => {
@@ -214,4 +221,29 @@ impl<'a> Context<'a> {
         }
         return Ok("".to_string());
     }
+}
+
+#[test]
+fn test_hello() {
+    let mut args = vec!["test/data/hello".to_string()];
+    let mut ctx = Context::new(&args);
+    assert!(!ctx.is_running());
+    ctx.set_main_binary(&args[0]);
+    let addr = {
+        let addr = ctx.resolve("main");
+        assert!(addr.is_some());
+        *addr.unwrap()
+    };
+    assert!(ctx.add_breakpoint(addr).is_ok());
+    assert!(!ctx.is_running());
+    assert!(ctx.run(vec!()).is_ok());
+    assert!(ctx.wait().is_ok());
+    assert!(ctx.is_running());
+    assert_eq!(ctx.ip(), addr);
+    assert!(ctx.single_step().is_ok());
+    assert_eq!(ctx.ip(), addr + 1);
+    assert!(ctx.is_running());
+    assert!(ctx.cont().is_ok());
+    assert!(ctx.wait().is_ok());
+    assert!(!ctx.is_running());
 }
