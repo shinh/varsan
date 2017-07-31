@@ -1,4 +1,5 @@
 use binary;
+use breakpoint;
 use command;
 use eval;
 use ptracer;
@@ -8,7 +9,7 @@ pub struct Context<'a> {
     main_binary: binary::Binary<'a>,
     symtab: HashMap<&'a str, u64>,
     ptracer: Option<ptracer::Ptracer>,
-    breakpoints: HashMap<u64, u8>,
+    breakpoints: breakpoint::BreakpointManager,
     done: bool,
 }
 
@@ -24,7 +25,7 @@ impl<'a> Context<'a> {
             main_binary: bin,
             symtab: symtab,
             ptracer: Some(ptracer),
-            breakpoints: HashMap::new(),
+            breakpoints: breakpoint::BreakpointManager::new(),
             done: false,
         })
     }
@@ -39,14 +40,11 @@ impl<'a> Context<'a> {
                        -> Result<String, String> {
         match cmd {
             command::Command::Break(addr) => {
-                if self.ptracer.is_none() {
-                    return Err("The program is not being run.".to_string());
-                }
-                let ptracer = self.ptracer.as_ref().unwrap();
-
                 let addr = eval::eval(self, addr);
-                let token = ptracer.poke_breakpoint(addr);
-                self.breakpoints.insert(addr, token);
+                let bp = self.breakpoints.add(addr, true,
+                                              self.ptracer.as_ref());
+                return Ok(format!("Breakpoint {} at 0x{:x}",
+                                  bp.id(), bp.addr()));
             }
 
             command::Command::Cont => {

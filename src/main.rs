@@ -1,4 +1,5 @@
 mod binary;
+mod breakpoint;
 mod command;
 mod context;
 mod eval;
