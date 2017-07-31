@@ -6,7 +6,7 @@ use ptracer;
 use std::collections::HashMap;
 
 pub struct Context<'a> {
-    main_binary: binary::Binary<'a>,
+    main_binary: Option<binary::Binary<'a>>,
     args: Vec<String>,
     symtab: HashMap<&'a str, u64>,
     ptracer: Option<ptracer::Ptracer>,
@@ -15,23 +15,29 @@ pub struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    pub fn new(args: &Vec<String>) -> Result<Self, String> {
-        let bin = try!(binary::Binary::new(args[0].clone()));
-        let mut symtab = HashMap::new();
-        for sym in bin.syms() {
-            symtab.insert(sym.name, sym.value);
-        }
-        Ok(Self {
-            main_binary: bin,
+    pub fn new(args: &Vec<String>) -> Self {
+        Self {
+            main_binary: None,
             args: args.iter().map(|a|a.clone()).collect(),
-            symtab: symtab,
+            symtab: HashMap::new(),
             ptracer: None,
             breakpoints: breakpoint::BreakpointManager::new(),
             done: false,
-        })
+        }
     }
 
     pub fn is_done(&self) -> bool { self.done }
+
+    pub fn set_main_binary(&mut self, main_binary: &str)
+                           -> Result<String, String> {
+        self.symtab.clear();
+        let bin = try!(binary::Binary::new(main_binary.to_string()));
+        for sym in bin.syms() {
+            self.symtab.insert(sym.name, sym.value);
+        }
+        self.main_binary = Some(bin);
+        return Ok(format!("Reading symbols from {}...done.", main_binary));
+    }
 
     pub fn resolve(&self, name: &str) -> Option<&u64> {
         return self.symtab.get(name);
@@ -51,6 +57,23 @@ impl<'a> Context<'a> {
             return Ok("program finished".to_string());
         }
         return Ok("".to_string());
+    }
+
+    pub fn run(&mut self, args: Vec<String>) -> Result<String, String> {
+        let mut argv = vec![];
+        {
+            let main_binary = try!(self.main_binary.as_mut().ok_or(
+                "No executable specified.".to_string()));
+            argv.push(main_binary.filename().clone());
+        }
+        if args.len() > 0 {
+            argv.extend(args);
+        } else {
+            argv.extend(self.args.iter().cloned());
+        }
+        self.ptracer = Some(ptracer::Ptracer::new(&argv));
+        self.breakpoints.notify_start(&self.ptracer.as_ref().unwrap());
+        return self.cont();
     }
 
     pub fn run_command(&mut self, cmd: command::Command)
@@ -84,15 +107,7 @@ impl<'a> Context<'a> {
             }
 
             command::Command::Run(args) => {
-                let mut argv = vec![self.main_binary.filename().clone()];
-                if args.len() > 0 {
-                    argv.extend(args);
-                } else {
-                    argv.extend(self.args.iter().cloned());
-                }
-                self.ptracer = Some(ptracer::Ptracer::new(&argv));
-                self.breakpoints.notify_start(&self.ptracer.as_ref().unwrap());
-                return self.cont();
+                return self.run(args);
             }
 
             command::Command::StepI => {

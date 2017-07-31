@@ -20,11 +20,12 @@ fn main() {
     let flags = flags::parse(std::env::args().collect());
 
     let mut ctx = context::Context::new(&flags.args);
-    if let Err(e) = ctx {
-        println!("{}", e.red());
-        return;
+    if flags.args.len() > 0 {
+        match ctx.set_main_binary(&flags.args[0]) {
+            Ok(msg) => println!("{}", msg),
+            Err(msg) => println!("{}", msg.red()),
+        }
     }
-    let mut ctx = ctx.unwrap();
 
     let mut rl = Editor::<()>::new();
     match std::env::home_dir() {
