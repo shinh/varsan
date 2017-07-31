@@ -10,8 +10,8 @@ mod libc_utils;
 mod ptracer;
 mod target_desc;
 
-use std::collections::HashMap;
-
+extern crate colored;
+use colored::*;
 extern crate rustyline;
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
@@ -21,7 +21,7 @@ fn main() {
 
     let mut ctx = context::Context::new(&flags.args);
     if let Err(e) = ctx {
-        println!("{}", e);
+        println!("{}", e.red());
         return;
     }
     let mut ctx = ctx.unwrap();
@@ -53,7 +53,7 @@ fn main() {
                                 }
                             }
                             Err(err) => {
-                                println!("{}", err);
+                                println!("{}", err.red());
                             }
                         }
                         if ctx.is_done() {
@@ -62,7 +62,7 @@ fn main() {
                     }
                     Err(e) => {
                         if e.len() > 0 {
-                            println!("{}", e);
+                            println!("{}", e.red());
                         }
                     }
                 }
@@ -72,7 +72,7 @@ fn main() {
                 break;
             },
             Err(ReadlineError::Eof) => {
-                println!("CTRL-D");
+                println!("quit");
                 break;
             },
             Err(err) => {
