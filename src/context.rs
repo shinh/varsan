@@ -12,6 +12,7 @@ pub struct Context<'a> {
     ptracer: Option<ptracer::Ptracer>,
     breakpoints: breakpoint::BreakpointManager,
     needs_wait: bool,
+    regs: ptracer::Registers,
 }
 
 impl<'a> Context<'a> {
@@ -23,6 +24,7 @@ impl<'a> Context<'a> {
             ptracer: None,
             breakpoints: breakpoint::BreakpointManager::new(),
             needs_wait: false,
+            regs: ptracer::Registers::empty(),
         }
     }
 
@@ -59,7 +61,16 @@ impl<'a> Context<'a> {
 
         match status {
             ptracer::ProcessState::Stop(_) => {
-                return Ok("".to_string());
+                self.regs = self.ptracer.as_ref().unwrap().get_regs();
+                match self.breakpoints.find_by_addr(self.regs.ip()) {
+                    Some(bp) => {
+                        return Ok(format!("Breakpoint {}, 0x{:x}",
+                                          bp.id(), self.regs.ip()));
+                    }
+                    None => {
+                        return Ok("TODO!".to_string());
+                    }
+                }
             }
             ptracer::ProcessState::Exit(st) => {
                 let pid = self.pid();
@@ -86,7 +97,7 @@ impl<'a> Context<'a> {
         ptracer.cont();
         assert!(!self.needs_wait);
         self.needs_wait = true;
-        return Ok("Continueing.".to_string());
+        return Ok("Continuing.".to_string());
     }
 
     pub fn run(&mut self, args: Vec<String>) -> Result<String, String> {

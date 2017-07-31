@@ -31,6 +31,14 @@ impl Registers {
     pub fn ip(&self) -> u64 { self.ip }
     pub fn sp(&self) -> u64 { self.sp }
     pub fn bp(&self) -> u64 { self.bp }
+    pub fn empty() -> Self {
+        Self {
+            gps: vec!(),
+            ip: 0,
+            sp: 0,
+            bp: 0,
+        }
+    }
 }
 
 fn check_ptrace<'a>(retval: i64, msg: &'a str) -> i64 {
@@ -118,8 +126,10 @@ impl Ptracer {
             gps[i] = r;
         }
 
+        let ip = gps[self.target.ip_index] - self.target.breakpoint_size as u64;
+        gps[self.target.ip_index] = ip;
         return Registers {
-            ip: gps[self.target.ip_index],
+            ip: ip,
             sp: gps[self.target.sp_index],
             bp: gps[self.target.bp_index],
             gps: gps,

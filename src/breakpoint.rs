@@ -73,4 +73,13 @@ impl BreakpointManager {
             }
         }
     }
+
+    pub fn find_by_addr(&self, addr: u64) -> Option<&Breakpoint> {
+        for bp in &self.breakpoints {
+            if bp.addr == addr {
+                return Some(bp);
+            }
+        }
+        return None;
+    }
 }
