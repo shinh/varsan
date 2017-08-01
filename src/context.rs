@@ -50,8 +50,8 @@ impl<'a> Context<'a> {
 
     pub fn needs_wait(&self) -> bool { self.needs_wait }
 
-    pub fn resolve(&self, name: &str) -> Option<&u64> {
-        return self.symtab.get(name);
+    pub fn resolve(&self, name: &str) -> Option<u64> {
+        return self.symtab.get(name).map(|v|*v);
     }
 
     fn pid(&self) -> i32 {
@@ -229,11 +229,9 @@ fn test_hello() {
     let mut ctx = Context::new(&args);
     assert!(!ctx.is_running());
     ctx.set_main_binary(&args[0]);
-    let addr = {
-        let addr = ctx.resolve("main");
-        assert!(addr.is_some());
-        *addr.unwrap()
-    };
+    let addr = ctx.resolve("main");
+    assert!(addr.is_some());
+    let addr = addr.unwrap();
     assert!(ctx.add_breakpoint(addr).is_ok());
     assert!(!ctx.is_running());
     assert!(ctx.run(vec!()).is_ok());
