@@ -20,9 +20,9 @@ fn parse_break(s: &str) -> Result<Command, String> {
     Ok(Command::Break(try!(expr::parse(s))))
 }
 
-fn parse_x(cmd: &str, s: &str) -> Result<Command, String> {
-    let mut num = 1;
-    let mut base = 16;
+fn parse_x(_: &str, s: &str) -> Result<Command, String> {
+    let num = 1;
+    let base = 16;
     // TODO: Parse num and base.
     match expr::parse(s) {
         Ok(e) => Ok(Command::X(num, base, e)),

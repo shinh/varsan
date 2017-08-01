@@ -33,8 +33,10 @@ impl<'a> Context<'a> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn ip(&self) -> u64 { self.regs.ip() }
 
+    #[allow(dead_code)]
     pub fn is_running(&self) -> bool { self.ptracer.is_some() }
 
     pub fn set_main_binary(&mut self, main_binary: &str)
@@ -119,8 +121,7 @@ impl<'a> Context<'a> {
         let ptracer = self.ptracer.as_mut().unwrap();
 
         if self.cur_breakpoint != 0 {
-            let bp = self.breakpoints.find_by_id(self.cur_breakpoint);
-            if let Some(bp) = bp {
+            if self.breakpoints.find_by_id(self.cur_breakpoint).is_some() {
                 ptracer.single_step();
                 ptracer.wait();
             }
@@ -174,7 +175,7 @@ impl<'a> Context<'a> {
         match cmd {
             command::Command::Break(addr) => {
                 let addr = eval::eval(self, addr);
-                self.add_breakpoint(addr);
+                return self.add_breakpoint(addr);
             }
 
             command::Command::Cont => {
@@ -204,7 +205,7 @@ impl<'a> Context<'a> {
                 return self.single_step();
             }
 
-            command::Command::X(num, base, addr) => {
+            command::Command::X(num, _, addr) => {
                 if self.ptracer.is_none() {
                     return Err("The program is not being run.".to_string());
                 }
@@ -225,10 +226,10 @@ impl<'a> Context<'a> {
 
 #[test]
 fn test_hello() {
-    let mut args = vec!["test/data/hello".to_string()];
+    let args = vec!["test/data/hello".to_string()];
     let mut ctx = Context::new(&args);
     assert!(!ctx.is_running());
-    ctx.set_main_binary(&args[0]);
+    assert!(ctx.set_main_binary(&args[0]).is_ok());
     let addr = ctx.resolve("main");
     assert!(addr.is_some());
     let addr = addr.unwrap();

@@ -4,7 +4,6 @@ extern crate owning_ref;
 
 use self::goblin::elf;
 use self::owning_ref::OwningHandle;
-use std;
 
 pub struct Symbol<'a> {
     pub name: &'a str,
@@ -56,7 +55,7 @@ impl<'a> Binary<'a> {
                         value: sym.st_value as u64
                     });
                 }
-                Err(e) => {
+                Err(_) => {
                     println!("{}: invalid strtab", self.filename);
                 }
             }

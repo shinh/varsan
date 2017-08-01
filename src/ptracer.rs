@@ -41,14 +41,14 @@ impl Registers {
         }
     }
 
-    pub fn clone(&self) -> Self {
-        Self {
-            gps: self.gps.clone(),
-            ip: self.ip,
-            sp: self.sp,
-            bp: self.bp,
-        }
-    }
+    // pub fn clone(&self) -> Self {
+    //     Self {
+    //         gps: self.gps.clone(),
+    //         ip: self.ip,
+    //         sp: self.sp,
+    //         bp: self.bp,
+    //     }
+    // }
 
     pub fn update_ip(&mut self, ip: u64, target: &target_desc::Target) {
         self.ip = ip;
