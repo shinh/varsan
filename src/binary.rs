@@ -70,7 +70,7 @@ fn test_c_binary() {
     let mut found_count = 0;
     for sym in bin.syms() {
         if sym.name == "main" {
-            assert_eq!(0x40051d, sym.value);
+            assert_eq!(0x4005d0, sym.value);
             found_count += 1;
         }
     }
