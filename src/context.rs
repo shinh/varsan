@@ -228,6 +228,7 @@ impl<'a> Context<'a> {
     }
 }
 
+#[cfg(test)]
 fn ok_match(pat: &str, result: Result<String, String>, expr: &str) {
     match result {
         Err(err) => {
