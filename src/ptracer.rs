@@ -185,12 +185,17 @@ impl Ptracer {
         }
 
         unsafe {
-            if libc::WIFSTOPPED(status) {
-                return ProcessState::Stop(libc::WSTOPSIG(status));
+            if libc::WIFSIGNALED(status) {
+                return ProcessState::Signal(libc::WTERMSIG(status));
             } else if libc::WIFEXITED(status) {
                 return ProcessState::Exit(libc::WEXITSTATUS(status));
-            } else if libc::WIFSIGNALED(status) {
-                return ProcessState::Signal(libc::WTERMSIG(status));
+            } else if libc::WIFSTOPPED(status) {
+                let sig = libc::WSTOPSIG(status);
+                if sig == libc::SIGTRAP {
+                    return ProcessState::Stop(sig);
+                } else {
+                    return ProcessState::Signal(sig);
+                }
             } else {
                 panic!("Unknown status: {}", status);
             }

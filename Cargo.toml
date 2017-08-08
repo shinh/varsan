@@ -5,7 +5,7 @@ authors = ["Shinichiro Hamaji <shinichiro.hamaji@gmail.com>"]
 
 [dependencies]
 libc = "*"
-regex-syntax = "*"
+regex = "*"
 rustyline = "1.0.0"
 memmap = "*"
 goblin = "*"

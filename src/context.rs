@@ -1,3 +1,5 @@
+extern crate regex;
+
 use binary;
 use breakpoint;
 use command;
@@ -97,6 +99,7 @@ impl<'a> Context<'a> {
                     }
                 }
             }
+
             ptracer::ProcessState::Exit(st) => {
                 let pid = self.pid();
                 self.breakpoints.notify_finish();
@@ -104,6 +107,7 @@ impl<'a> Context<'a> {
                 return Ok(format!("Process {} exited with code {}",
                                   pid, st));
             }
+
             ptracer::ProcessState::Signal(sig) => {
                 let pid = self.pid();
                 self.breakpoints.notify_finish();
@@ -224,6 +228,27 @@ impl<'a> Context<'a> {
     }
 }
 
+fn ok_match(pat: &str, result: Result<String, String>, expr: &str) {
+    match result {
+        Err(err) => {
+            panic!("assertion failed: `{}` is an err: {}", expr, err);
+        }
+        Ok(msg) => {
+            let re = regex::Regex::new(pat).unwrap();
+            if !re.is_match(&msg) {
+                panic!("assertion failed: `{}` (\"{}\"), does not match {}",
+                       expr, msg, pat);
+            }
+        }
+    }
+}
+
+macro_rules! assert_ok_match {
+    ($pat:expr, $result:expr) => {
+        ok_match($pat, $result, stringify!($result));
+    };
+}
+
 #[test]
 fn test_hello() {
     let args = vec!["test/data/hello".to_string()];
@@ -233,16 +258,27 @@ fn test_hello() {
     let addr = ctx.resolve("main");
     assert!(addr.is_some());
     let addr = addr.unwrap();
-    assert!(ctx.add_breakpoint(addr).is_ok());
+    assert_ok_match!(r"Breakpoint 1 at 0x", ctx.add_breakpoint(addr));
     assert!(!ctx.is_running());
     assert!(ctx.run(vec!()).is_ok());
-    assert!(ctx.wait().is_ok());
+    assert_ok_match!(r"Breakpoint 1, ", ctx.wait());
     assert!(ctx.is_running());
     assert_eq!(ctx.ip(), addr);
     assert!(ctx.single_step().is_ok());
     assert_eq!(ctx.ip(), addr + 1);
     assert!(ctx.is_running());
     assert!(ctx.cont().is_ok());
-    assert!(ctx.wait().is_ok());
+    assert_ok_match!(r"Process \d+ exited with code 0", ctx.wait());
+    assert!(!ctx.is_running());
+}
+
+#[test]
+fn test_segv() {
+    let args = vec!["test/data/segv".to_string()];
+    let mut ctx = Context::new(&args);
+    assert!(!ctx.is_running());
+    assert!(ctx.set_main_binary(&args[0]).is_ok());
+    assert!(ctx.run(vec!()).is_ok());
+    assert_ok_match!(r"Process \d+ signaled with code \d+", ctx.wait());
     assert!(!ctx.is_running());
 }
