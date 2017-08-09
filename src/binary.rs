@@ -13,6 +13,7 @@ pub struct Symbol<'a> {
 pub struct Binary<'a> {
     filename: String,
     o: OwningHandle<Box<memmap::Mmap>, Box<goblin::elf::Elf<'a>>>,
+    bias: u64,
 }
 
 impl<'a> Binary<'a> {
@@ -31,6 +32,7 @@ impl<'a> Binary<'a> {
         return Ok(Binary {
             filename: filename,
             o: o,
+            bias: 0,
         });
     }
 
@@ -61,6 +63,23 @@ impl<'a> Binary<'a> {
             }
         }
         return r;
+    }
+
+    pub fn interp(&self) -> Option<&str> {
+        return self.o.interpreter;
+    }
+
+    pub fn entry(&self) -> u64 {
+        return self.o.entry;
+    }
+
+    #[allow(dead_code)]
+    pub fn bias(&self) -> u64 {
+        return self.bias;
+    }
+
+    pub fn set_bias(&mut self, bias: u64) {
+        self.bias = bias;
     }
 }
 

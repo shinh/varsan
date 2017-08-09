@@ -5,6 +5,7 @@ use std;
 use libc_utils::*;
 use target_desc;
 
+#[derive(Debug)]
 pub enum ProcessState {
     Stop (i32),
     Exit (i32),
@@ -107,7 +108,8 @@ impl Ptracer {
         let status = ptracer.wait();
         if !status.is_stopped() {
             // TODO: Handle error properly.
-            println!("Starting a child process ({}) failed", args[0]);
+            println!("Starting a child process ({}) failed ({:?})",
+                     args[0], status);
             std::process::exit(-1);
         }
 
@@ -181,7 +183,7 @@ impl Ptracer {
     pub fn wait(&mut self) -> ProcessState {
         let mut status: i32 = -1;
         unsafe {
-            check_libc!(libc::wait(&mut status));
+            check_libc!(libc::waitpid(self.pid, &mut status, 0));
         }
 
         unsafe {

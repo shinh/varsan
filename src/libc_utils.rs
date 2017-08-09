@@ -14,8 +14,7 @@ pub fn abort_libc(msg: &str) {
         strerror = std::ffi::CString::from_raw(
             libc::strerror(errno())).into_string().unwrap();
     }
-    println!("{}: {} (errno={})", msg, strerror, errno());
-    std::process::exit(-1);
+    panic!("{}: {} (errno={})", msg, strerror, errno());
 }
 
 pub fn check_libc<'a>(retval: i32, msg: &'a str) {

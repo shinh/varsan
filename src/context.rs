@@ -10,6 +10,8 @@ use std::collections::HashMap;
 
 pub struct Context<'a> {
     main_binary: Option<binary::Binary<'a>>,
+    interp: Option<binary::Binary<'a>>,
+
     args: Vec<String>,
     symtab: HashMap<&'a str, u64>,
     ptracer: Option<ptracer::Ptracer>,
@@ -24,6 +26,7 @@ impl<'a> Context<'a> {
     pub fn new(args: &Vec<String>) -> Self {
         Self {
             main_binary: None,
+            interp: None,
             args: args.iter().map(|a|a.clone()).collect(),
             symtab: HashMap::new(),
             ptracer: None,
@@ -41,6 +44,11 @@ impl<'a> Context<'a> {
     #[allow(dead_code)]
     pub fn is_running(&self) -> bool { self.ptracer.is_some() }
 
+    #[cfg(test)]
+    fn interp(&self) -> Option<&binary::Binary<'a>> {
+        return self.interp.as_ref();
+    }
+
     pub fn set_main_binary(&mut self, main_binary: &str)
                            -> Result<String, String> {
         self.symtab.clear();
@@ -48,6 +56,11 @@ impl<'a> Context<'a> {
         for sym in bin.syms() {
             self.symtab.insert(sym.name, sym.value);
         }
+
+        if let Some(interp) = bin.interp() {
+            self.interp = Some(try!(binary::Binary::new(interp.to_string())));
+        }
+
         self.main_binary = Some(bin);
         return Ok(format!("Reading symbols from {}...done.", main_binary));
     }
@@ -138,6 +151,18 @@ impl<'a> Context<'a> {
         return Ok("Continuing.".to_string());
     }
 
+    fn set_entry_bias(&mut self, ip: u64) {
+        if let Some(ref mut interp) = self.interp {
+            let entry = interp.entry();
+            interp.set_bias(ip - entry);
+        } else if let Some(ref mut main_binary) = self.main_binary {
+            let entry = main_binary.entry();
+            main_binary.set_bias(ip - entry);
+        } else {
+            panic!("No binary is set");
+        }
+    }
+
     pub fn run(&mut self, args: Vec<String>) -> Result<String, String> {
         let msg = try!(self.start(args));
         try!(self.cont());
@@ -160,6 +185,10 @@ impl<'a> Context<'a> {
         let ptracer = ptracer::Ptracer::new(&argv);
         let msg = format!("Starting program: {} (pid={})",
                           argv[0], ptracer.pid());
+
+        let regs = ptracer.get_regs();
+        self.set_entry_bias(regs.ip());
+
         self.ptracer = Some(ptracer);
         self.breakpoints.notify_start(&self.ptracer.as_ref().unwrap());
         return Ok(msg);
@@ -264,16 +293,29 @@ macro_rules! assert_ok_match {
 }
 
 #[test]
+fn test_start() {
+    let args = vec!["test/data/hello".to_string()];
+    let mut ctx = Context::new(&args);
+    assert!(!ctx.is_running());
+    assert!(ctx.set_main_binary(&args[0]).is_ok());
+    assert!(ctx.start(vec!()).is_ok());
+    assert!(ctx.is_running());
+    assert!(ctx.interp().unwrap().bias() != 0);
+}
+
+#[test]
 fn test_hello() {
     let args = vec!["test/data/hello".to_string()];
     let mut ctx = Context::new(&args);
     assert!(!ctx.is_running());
     assert!(ctx.set_main_binary(&args[0]).is_ok());
+
     let addr = ctx.resolve("main");
     assert!(addr.is_some());
     let addr = addr.unwrap();
     assert_ok_match!(r"Breakpoint 1 at 0x", ctx.add_breakpoint(addr));
     assert!(!ctx.is_running());
+
     assert!(ctx.run(vec!()).is_ok());
     assert_ok_match!(r"Breakpoint 1, ", ctx.wait());
     assert!(ctx.is_running());
