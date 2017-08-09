@@ -139,6 +139,12 @@ impl<'a> Context<'a> {
     }
 
     pub fn run(&mut self, args: Vec<String>) -> Result<String, String> {
+        let msg = try!(self.start(args));
+        try!(self.cont());
+        return Ok(msg);
+    }
+
+    pub fn start(&mut self, args: Vec<String>) -> Result<String, String> {
         let mut argv = vec![];
         {
             let main_binary = try!(self.main_binary.as_mut().ok_or(
@@ -150,10 +156,13 @@ impl<'a> Context<'a> {
         } else {
             argv.extend(self.args.iter().cloned());
         }
-        self.ptracer = Some(ptracer::Ptracer::new(&argv));
+        // TODO: Stop at main if it exists.
+        let ptracer = ptracer::Ptracer::new(&argv);
+        let msg = format!("Starting program: {} (pid={})",
+                          argv[0], ptracer.pid());
+        self.ptracer = Some(ptracer);
         self.breakpoints.notify_start(&self.ptracer.as_ref().unwrap());
-        try!(self.cont());
-        return Ok(format!("Starting program: {}", argv[0]));
+        return Ok(msg);
     }
 
     pub fn single_step(&mut self) -> Result<String, String> {
@@ -203,6 +212,10 @@ impl<'a> Context<'a> {
 
             command::Command::Run(args) => {
                 return self.run(args);
+            }
+
+            command::Command::Start(args) => {
+                return self.start(args);
             }
 
             command::Command::StepI => {
