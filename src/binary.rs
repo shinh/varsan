@@ -2,6 +2,7 @@ extern crate goblin;
 extern crate memmap;
 extern crate owning_ref;
 
+use log;
 use self::goblin::elf;
 use self::owning_ref::OwningHandle;
 
@@ -18,6 +19,7 @@ pub struct Binary<'a> {
 
 impl<'a> Binary<'a> {
     pub fn new(filename: String) -> Result<Self, String> {
+        log::info(format!("Reading {}...", filename));
         let mem = try!(
             memmap::Mmap::open_path(&filename, memmap::Protection::Read)
                 .or(Err(format!("Failed to open: {}", &filename))));
@@ -39,10 +41,10 @@ impl<'a> Binary<'a> {
     pub fn filename(&self) -> &String { &self.filename }
 
     pub fn syms(&self) -> Vec<Symbol<'a>> {
-        let syms = if self.o.syms.len() == 0 {
-            &self.o.dynsyms
+        let (syms, strtab) = if self.o.syms.len() == 0 {
+            (&self.o.dynsyms, &self.o.dynstrtab)
         } else {
-            &self.o.syms
+            (&self.o.syms, &self.o.strtab)
         };
 
         let mut r = vec!();
@@ -50,7 +52,7 @@ impl<'a> Binary<'a> {
             if sym.st_name == 0 {
                 continue;
             }
-            match self.o.strtab.get(sym.st_name) {
+            match strtab.get(sym.st_name) {
                 Ok(name) => {
                     r.push(Symbol {
                         name: name,

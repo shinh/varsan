@@ -58,7 +58,8 @@ impl Registers {
 }
 
 fn check_ptrace<'a>(retval: i64, msg: &'a str) -> i64 {
-    if retval < 0 {
+    // TODO: Update libc and use set_errno() before ptrace.
+    if retval == -1  {
         abort_libc(msg);
     }
     return retval;

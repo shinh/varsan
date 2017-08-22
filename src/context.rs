@@ -4,6 +4,7 @@ use binary;
 use breakpoint;
 use command;
 use eval;
+use log;
 use ptracer;
 use target_desc;
 use std::collections::HashMap;
@@ -20,6 +21,8 @@ pub struct Context<'a> {
     regs: ptracer::Registers,
     target: target_desc::Target,
     cur_breakpoint: i32,
+
+    r_map: u64,
 }
 
 impl<'a> Context<'a> {
@@ -35,6 +38,7 @@ impl<'a> Context<'a> {
             regs: ptracer::Registers::empty(),
             target: target_desc::get_target(),
             cur_breakpoint: 0,
+            r_map: 0,
         }
     }
 
@@ -58,7 +62,8 @@ impl<'a> Context<'a> {
         }
 
         if let Some(interp) = bin.interp() {
-            self.interp = Some(try!(binary::Binary::new(interp.to_string())));
+            let interp = try!(binary::Binary::new(interp.to_string()));
+            self.interp = Some(interp);
         }
 
         self.main_binary = Some(bin);
@@ -81,6 +86,47 @@ impl<'a> Context<'a> {
         return self.wait_impl(false);
     }
 
+    fn handle_breakpoint(&mut self, is_single_step: bool)
+                         -> Result<String, String> {
+        {
+            let ptracer = self.ptracer.as_ref().unwrap();
+            self.regs = ptracer.get_regs();
+            // TODO: Handle single-step-to-braekpoint case.
+            if is_single_step {
+                return Ok("".to_string());
+            }
+
+            let ip = self.regs.ip() - self.target.breakpoint_size as u64;
+            match self.breakpoints.find_by_addr(ip) {
+                Some(bp) => {
+                    self.regs.update_ip(ip, &self.target);
+                    ptracer.set_regs(&self.regs);
+                    ptracer.poke_byte(ip, bp.token());
+                    self.cur_breakpoint = bp.id();
+                    match bp.action() {
+                        &Some(breakpoint::Action::UpdateRDebug) => {
+                        }
+
+                        &Some(breakpoint::Action::EnterMainBinary) => {
+                            log::info(format!("Entering main binary"));
+                        }
+
+                        &None => {
+                            return Ok(format!("Breakpoint {}, 0x{:x}",
+                                              bp.id(), self.regs.ip()));
+                        }
+                    }
+                }
+                None => {
+                    return Ok("".to_string());
+                }
+            }
+        }
+
+        try!(self.cont());
+        return Ok(format!(""));
+    }
+
     fn wait_impl(&mut self, is_single_step: bool) -> Result<String, String> {
         assert!(self.ptracer.is_some());
         self.needs_wait = false;
@@ -91,26 +137,7 @@ impl<'a> Context<'a> {
 
         match status {
             ptracer::ProcessState::Stop(_) => {
-                let ptracer = self.ptracer.as_ref().unwrap();
-                self.regs = ptracer.get_regs();
-                if is_single_step {
-                    return Ok("".to_string());
-                }
-
-                let ip = self.regs.ip() - self.target.breakpoint_size as u64;
-                match self.breakpoints.find_by_addr(ip) {
-                    Some(bp) => {
-                        self.regs.update_ip(ip, &self.target);
-                        ptracer.set_regs(&self.regs);
-                        ptracer.poke_byte(ip, bp.token());
-                        self.cur_breakpoint = bp.id();
-                        return Ok(format!("Breakpoint {}, 0x{:x}",
-                                          bp.id(), self.regs.ip()));
-                    }
-                    None => {
-                        return Ok("".to_string());
-                    }
-                }
+                return self.handle_breakpoint(is_single_step);
             }
 
             ptracer::ProcessState::Exit(st) => {
@@ -138,9 +165,11 @@ impl<'a> Context<'a> {
         let ptracer = self.ptracer.as_mut().unwrap();
 
         if self.cur_breakpoint != 0 {
-            if self.breakpoints.find_by_id(self.cur_breakpoint).is_some() {
+            if let Some(bp) = self.breakpoints.find_by_id(self.cur_breakpoint) {
+                ptracer.poke_byte(bp.addr(), bp.token());
                 ptracer.single_step();
                 ptracer.wait();
+                ptracer.poke_breakpoint(bp.addr());
             }
             self.cur_breakpoint = 0;
         }
@@ -169,6 +198,49 @@ impl<'a> Context<'a> {
         return Ok(msg);
     }
 
+    fn handle_boot_entry(&mut self) {
+        if self.interp.is_some() {
+            // TODO: Handle PIE.
+            let main_binary = match self.main_binary.as_ref() {
+                Some(bin) => bin,
+                None => panic!("No start binary"),
+            };
+            self.breakpoints.add(main_binary.entry(), false,
+                                 Some(breakpoint::Action::EnterMainBinary),
+                                 self.ptracer.as_ref());
+            return;
+        } else {
+            self.read_r_debug();
+        }
+    }
+
+    fn read_r_debug(&mut self) {
+        let bin = {
+            match self.interp.as_ref() {
+                Some(bin) => bin,
+                None => match self.main_binary.as_ref() {
+                    Some(bin) => bin,
+                    None => panic!("No start binary"),
+                }
+            }
+        };
+
+        for sym in bin.syms() {
+            if sym.name == "_r_debug" {
+                let r_debug_addr = sym.value + bin.bias();
+                self.r_map = r_debug_addr + (self.target.gp_size as u64);
+                let ptracer = self.ptracer.as_ref();
+                let bp = ptracer.unwrap().peek_word(
+                    r_debug_addr + (self.target.gp_size as u64) * 2);
+                log::info(format!("r_debug_addr={:x} bp={:x}",
+                                  r_debug_addr, bp));
+                self.breakpoints.add(bp, false,
+                                     Some(breakpoint::Action::UpdateRDebug),
+                                     ptracer);
+            }
+        }
+    }
+
     pub fn start(&mut self, args: Vec<String>) -> Result<String, String> {
         let mut argv = vec![];
         {
@@ -191,6 +263,8 @@ impl<'a> Context<'a> {
 
         self.ptracer = Some(ptracer);
         self.breakpoints.notify_start(&self.ptracer.as_ref().unwrap());
+
+        self.handle_boot_entry();
         return Ok(msg);
     }
 
@@ -207,7 +281,7 @@ impl<'a> Context<'a> {
     }
 
     pub fn add_breakpoint(&mut self, addr: u64) -> Result<String, String> {
-        let bp = self.breakpoints.add(addr, true,
+        let bp = self.breakpoints.add(addr, true, None,
                                       self.ptracer.as_ref());
         return Ok(format!("Breakpoint {} at 0x{:x}", bp.id(), bp.addr()));
     }
@@ -317,6 +391,7 @@ fn test_hello() {
     assert!(!ctx.is_running());
 
     assert!(ctx.run(vec!()).is_ok());
+    assert!(ctx.wait().is_ok());
     assert_ok_match!(r"Breakpoint 1, ", ctx.wait());
     assert!(ctx.is_running());
     assert_eq!(ctx.ip(), addr);
@@ -335,6 +410,7 @@ fn test_segv() {
     assert!(!ctx.is_running());
     assert!(ctx.set_main_binary(&args[0]).is_ok());
     assert!(ctx.run(vec!()).is_ok());
+    assert!(ctx.wait().is_ok());
     assert_ok_match!(r"Process \d+ signaled with code \d+", ctx.wait());
     assert!(!ctx.is_running());
 }

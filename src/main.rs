@@ -7,6 +7,7 @@ mod expr;
 mod flags;
 #[macro_use]
 mod libc_utils;
+mod log;
 mod ptracer;
 mod target_desc;
 
@@ -65,7 +66,7 @@ fn main() {
                     }
                 }
 
-                if ctx.needs_wait() {
+                while ctx.needs_wait() {
                     match ctx.wait() {
                         Ok(result) => {
                             if result.len() > 0 {

@@ -1,22 +1,30 @@
 use ptracer;
 
+pub enum Action {
+    EnterMainBinary,
+    UpdateRDebug,
+}
+
 pub struct Breakpoint {
     id: i32,
     addr: u64,
     // TODO: token should be u32 or u64 for non-x86.
     token: u8,
     is_active: bool,
+    action: Option<Action>,
 }
 
 impl Breakpoint {
     pub fn id(&self) -> i32 { self.id }
     pub fn addr(&self) -> u64 { self.addr }
     pub fn token(&self) -> u8 { self.token }
+    pub fn action(&self) -> &Option<Action> { &self.action }
 }
 
 pub struct BreakpointManager {
     breakpoints: Vec<Breakpoint>,
     next_id: i32,
+    next_sys_id: i32,
 }
 
 impl BreakpointManager {
@@ -24,6 +32,7 @@ impl BreakpointManager {
         Self {
             breakpoints: vec!(),
             next_id: 0,
+            next_sys_id: 0,
         }
     }
 
@@ -44,13 +53,16 @@ impl BreakpointManager {
     }
 
     pub fn add(&mut self, addr: u64, by_user: bool,
+               action: Option<Action>,
                ptracer: Option<&ptracer::Ptracer>) -> &Breakpoint {
         let id = if by_user {
             self.next_id += 1;
             self.next_id
         } else {
-            0
+            self.next_sys_id -= 1;
+            self.next_sys_id
         };
+
         match ptracer {
             Some(ptracer) => {
                 let token = ptracer.poke_breakpoint(addr);
@@ -59,6 +71,7 @@ impl BreakpointManager {
                     addr: addr,
                     token: token,
                     is_active: true,
+                    action: action,
                 };
                 self.breakpoints.push(bp);
                 return &self.breakpoints[self.breakpoints.len()-1];
@@ -69,6 +82,7 @@ impl BreakpointManager {
                     addr: addr,
                     token: 0,
                     is_active: false,
+                    action: action,
                 };
                 self.breakpoints.push(bp);
                 return &self.breakpoints[self.breakpoints.len()-1];
