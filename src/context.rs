@@ -53,6 +53,11 @@ impl<'a> Context<'a> {
         return self.interp.as_ref();
     }
 
+    #[cfg(test)]
+    fn ptracer(&self) -> &ptracer::Ptracer {
+        return self.ptracer.as_ref().unwrap();
+    }
+
     pub fn set_main_binary(&mut self, main_binary: &str)
                            -> Result<String, String> {
         self.symtab.clear();
@@ -413,4 +418,16 @@ fn test_segv() {
     assert!(ctx.wait().is_ok());
     assert_ok_match!(r"Process \d+ signaled with code \d+", ctx.wait());
     assert!(!ctx.is_running());
+}
+
+#[test]
+fn test_neg_one() {
+    let args = vec!["test/data/neg_one".to_string()];
+    let mut ctx = Context::new(&args);
+    assert!(!ctx.is_running());
+    assert!(ctx.set_main_binary(&args[0]).is_ok());
+    assert!(ctx.start(vec!()).is_ok());
+
+    let addr = ctx.resolve("neg_one").unwrap();
+    assert_eq!(-1, ctx.ptracer().peek_word(addr) as i64);
 }

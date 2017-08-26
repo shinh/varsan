@@ -1,3 +1,4 @@
+extern crate errno;
 extern crate libc;
 
 use std;
@@ -57,9 +58,8 @@ impl Registers {
     }
 }
 
-fn check_ptrace<'a>(retval: i64, msg: &'a str) -> i64 {
-    // TODO: Update libc and use set_errno() before ptrace.
-    if retval == -1  {
+fn check_ptrace_helper<'a>(retval: i64, msg: &'a str) -> i64 {
+    if retval == -1 && errno::errno() != errno::Errno(0) {
         abort_libc(msg);
     }
     return retval;
@@ -67,10 +67,11 @@ fn check_ptrace<'a>(retval: i64, msg: &'a str) -> i64 {
 
 #[macro_export]
 macro_rules! check_ptrace {
-    ($r:expr, $e1:expr, $e2:expr, $e3:expr) =>
-        (check_ptrace(unsafe {
+    ($r:expr, $e1:expr, $e2:expr, $e3:expr) => {
+        check_ptrace_helper(unsafe {
             libc::ptrace($r, $e1, $e2, $e3)
-        }, stringify!($r)));
+        }, stringify!($r));
+    }
 }
 
 pub struct Ptracer {
