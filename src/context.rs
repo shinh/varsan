@@ -113,7 +113,7 @@ impl<'a> Context<'a> {
                         }
 
                         &Some(breakpoint::Action::EnterMainBinary) => {
-                            log::info(format!("Entering main binary"));
+                            log_info!("Entering main binary");
                         }
 
                         &None => {
@@ -237,8 +237,7 @@ impl<'a> Context<'a> {
                 let ptracer = self.ptracer.as_ref();
                 let bp = ptracer.unwrap().peek_word(
                     r_debug_addr + (self.target.gp_size as u64) * 2);
-                log::info(format!("r_debug_addr={:x} bp={:x}",
-                                  r_debug_addr, bp));
+                log_info!("r_debug_addr={:x} bp={:x}", r_debug_addr, bp);
                 self.breakpoints.add(bp, false,
                                      Some(breakpoint::Action::UpdateRDebug),
                                      ptracer);

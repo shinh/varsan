@@ -1,3 +1,8 @@
+#[macro_use]
+mod libc_utils;
+#[macro_use]
+mod log;
+
 mod binary;
 mod breakpoint;
 mod command;
@@ -5,9 +10,6 @@ mod context;
 mod eval;
 mod expr;
 mod flags;
-#[macro_use]
-mod libc_utils;
-mod log;
 mod ptracer;
 mod target_desc;
 

@@ -19,7 +19,7 @@ pub struct Binary<'a> {
 
 impl<'a> Binary<'a> {
     pub fn new(filename: String) -> Result<Self, String> {
-        log::info(format!("Reading {}...", filename));
+        log_info!("Reading {}...", filename);
         let mem = try!(
             memmap::Mmap::open_path(&filename, memmap::Protection::Read)
                 .or(Err(format!("Failed to open: {}", &filename))));
